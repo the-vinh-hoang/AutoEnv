@@ -6,12 +6,13 @@ const JIRA_ALIASES = new Map([
   ['bug', 'ORBISBUG'],
   ['orbisbug', 'ORBISBUG'],
   ['defect', 'ORBISBUG'],
+  ['gsupport', 'GSUPPORT'],
   ['hconn', 'HCONN'],
   ['story', 'HCONN'],
   ['hepic', 'HEPIC'],
   ['epic', 'HEPIC'],
 ]);
-const JIRA_TICKET_PATH = /^(ORBISBUG|HCONN|HEPIC)-([1-9]\d*)?$/;
+const JIRA_TICKET_PATH = /^(ORBISBUG|GSUPPORT|HCONN|HEPIC)-([1-9]\d*)?$/;
 const JIRA_NUMBER = /^[1-9]\d*$/;
 const ENDPOINT_URL = /^https:\/\/([A-Za-z0-9.-]+)(?::(\d{1,5}))?(\/[^?#\s]*)?$/i;
 
