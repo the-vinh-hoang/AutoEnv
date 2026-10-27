@@ -95,3 +95,9 @@ The snapshots contain internal infrastructure inventory. Treat the source/build 
 Build and test commands are owned by [package.json](package.json); [scripts/build.mjs](scripts/build.mjs) produces the unpacked `dist` folder. No HTML pages or runtime package installation are needed after building.
 
 Source entry points: [catalog parsing](src/catalog.js), [endpoint/Jira resolution](src/resolve.js), [persistent catalogs](src/cache.js), and [omnibox integration](src/background.js).
+
+### GitHub builds
+
+The [build workflow](.github/workflows/build.yml) owns automated checks and extension packaging. After pushing it to GitHub, open the repository's **Actions** tab, select a successful **Build extension** run, and download **autoenv-extension** from **Artifacts**. Extract the archive and load the folder containing `manifest.json` through Chrome's **Load unpacked** control. Downloading artifacts requires a GitHub login and access to the repository.
+
+Build artifacts contain the bundled internal catalogs, so the [privacy guidance](#privacy-and-permissions) also applies to their distribution.
