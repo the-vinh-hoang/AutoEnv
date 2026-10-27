@@ -1,7 +1,7 @@
 import { SOURCES, parseEnvironments } from './catalog.js';
 
 const CACHE_KEY = 'catalog';
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 export function catalogStatus(snapshot) {
   return {
@@ -39,10 +39,21 @@ export function createCatalogStore({ storage, fetchXml, now = () => new Date().t
     if (!loading) {
       loading = (async () => {
         const saved = (await storage.get(CACHE_KEY))[CACHE_KEY];
-        if (saved?.version === CACHE_VERSION && saved.sources?.length === SOURCES.length &&
+        if ((saved?.version === CACHE_VERSION || saved?.version === 1) && saved.sources?.length === SOURCES.length &&
             SOURCES.every(({ id }) => saved.sources.some(source => source.id === id &&
               typeof source.xml === 'string' && Array.isArray(source.records)))) {
-          snapshot = saved;
+          if (saved.version === 1) {
+            // Re-index the user's saved XML, preserving downloaded data and its dates.
+            const migrated = {
+              ...saved,
+              version: CACHE_VERSION,
+              sources: saved.sources.map(source => ({ ...source, ...parseEnvironments(source.xml, source.id) })),
+            };
+            await storage.set({ [CACHE_KEY]: migrated });
+            snapshot = migrated;
+          } else {
+            snapshot = saved;
+          }
         } else {
           const bundled = await buildSnapshot(true);
           await storage.set({ [CACHE_KEY]: bundled });

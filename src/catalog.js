@@ -17,6 +17,8 @@ export const SOURCES = [
 
 export const OAS_SOFTWARE = 'OAS - CON - standard:single';
 export const PROXY_SOFTWARE = 'ORBIS PROXY';
+const FHIR_SOFTWARE = 'OAS - APP - application:fhir';
+const FHIR_BACK_END_SOFTWARE = 'OAS - APP - application:fhir-back-end';
 
 const SUPPORTED_REGIONS = new Set(['AU', 'DACHL', 'FR', 'UKI']);
 const LIST_ELEMENTS = new Set(['environment_type', 'environment', 'software']);
@@ -126,10 +128,14 @@ export function parseEnvironments(xml, sourceId) {
 
       const oasHosts = [];
       const proxyHosts = [];
+      const fhirHosts = [];
+      const fhirBackEndHosts = [];
       for (const software of list(environment.software_installations, 'software')) {
         const name = attribute(software, 'name');
         if (name === OAS_SOFTWARE) addUnique(oasHosts, namedHosts(software));
         else if (name === PROXY_SOFTWARE) addUnique(proxyHosts, namedHosts(software));
+        else if (name === FHIR_SOFTWARE) addUnique(fhirHosts, namedHosts(software));
+        else if (name === FHIR_BACK_END_SOFTWARE) addUnique(fhirBackEndHosts, namedHosts(software));
       }
 
       records.push({
@@ -140,6 +146,8 @@ export function parseEnvironments(xml, sourceId) {
         db,
         oasHosts,
         proxyHosts,
+        fhirHosts,
+        fhirBackEndHosts,
       });
     }
   }

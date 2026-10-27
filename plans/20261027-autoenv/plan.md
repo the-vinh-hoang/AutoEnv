@@ -15,12 +15,13 @@ Build a Chrome Manifest V3 extension for ORBIS endpoint autocomplete and fixed J
 - Real snapshots bundled in `data/`; raw XML plus index stored in chrome.storage.local. Validate both downloaded sources before replacing one snapshot. Failed download/validation/storage write retains prior catalog.
 - Preserve all environment types for AU, DACHL, FR, UKI, retaining type/source/region labels. Missing exact software entries do not generate guessed endpoints. Preserve distinct host alternatives.
 - OAS software exact name `OAS - CON - standard:single`: webstart/bpe -> HTTPS :8443/webstart; ucc -> :8443/ucc; oas/console -> :9993/console/index.html.
+- FHIR consoles: `fhir` uses exact `OAS - APP - application:fhir`; `fhir-back-end` uses exact `OAS - APP - application:fhir-back-end`. Both produce HTTPS :9993/console/index.html, without substituting the standard OAS or proxy host.
 - ORBISU exact software name `ORBIS PROXY` (not `ORBISU PROXY`): u -> /u; iris -> /u/iris; iris-tracing -> /u/iris-tracing; iris-fhir -> /u/iris-fhir. HTTPS default port.
 - Case-insensitive database/product, either order, prefix suggestions. Jira aliases exactly requested. Bare alias shows complete prefix suggestion; Down selects it, End positions the cursor for ticket digits. API cannot forcibly replace the field before user selection or leave an accepted prefix editable after Enter; incomplete tickets never navigate or open replacement UI.
 - Unknown/ambiguous Enter leaves current tab unchanged; selecting a concrete result navigates. Honor current/new foreground/background disposition.
 
 ## Constants and module contracts
-`src/catalog.js` exports `SOURCES` = [{id,label,url,file}], and `parseEnvironments(xml, sourceId)` => `{updatedAt:string, records:Record[]}`. Record = `{id,sourceId,type,region,db,oasHosts:string[],proxyHosts:string[]}`.
+`src/catalog.js` exports `SOURCES` = [{id,label,url,file}], and `parseEnvironments(xml, sourceId)` => `{updatedAt:string, records:Record[]}`. Record = `{id,sourceId,type,region,db,oasHosts:string[],proxyHosts:string[],fhirHosts:string[],fhirBackEndHosts:string[]}`.
 - qa: label QA / PreQA; https://environments.orbis.dedalus.com/xml/environments.xml; file environments.xml
 - dev: label DEV; https://environments.orbis.dedalus.com/xml/environments_dev_fra.xml; file environments_dev_fra.xml
 Parser validates XML/root/schema, rejects DTD/entities and invalid hosts. Record id distinguishes source/type/region/database and duplicate rows.
@@ -28,7 +29,7 @@ Parser validates XML/root/schema, rejects DTD/entities and invalid hosts. Record
 `src/resolve.js`: `suggest(query, records, limit=30)` => `{kind:'endpoint'|'jira'|'jira-prefix',title,description,url,completion,region?,type?,sourceId?,db?,product?}[]`; completion is full URL. `isAllowedDestination(url,records)` permits generated endpoints and numeric fixed-project Jira tickets only.
 Jira base https://dedalus.atlassian.net/browse/: bug/orbisbug/defect => ORBISBUG-; hconn/story => HCONN-; hepic/epic => HEPIC-. Recognize full prefix URL + numeric ID for completion.
 
-`src/cache.js` owns offline initialization/persisted snapshot and transactional replacement. `src/background.js` owns omnibox commands and navigation.
+`src/cache.js` owns offline initialization/persisted snapshot and transactional replacement. Cache version 2 re-indexes version 1 records from their saved XML without downloads, preserving source data, bundled/downloaded state and dates; migration is persisted before use. `src/background.js` owns omnibox commands and navigation.
 
 ## Phases
 1. Catalog/resolver: safe XML parser, exact host rules, prefix/ambiguity handling, Jira aliases, behavioral edge tests.
@@ -52,3 +53,9 @@ Jira base https://dedalus.atlassian.net/browse/: bug/orbisbug/defect => ORBISBUG
 - Independent parser/resolver review found no actionable defects. Integration review repaired stale async status replacement and false rollback reporting after a committed refresh; regression tests cover both boundaries.
 - Canonical duplicate destinations collapse before limits, retaining the first label; distinct targets remain selectable. Exact product names win over partial matches.
 - README covers installation, command usage, no-popup scope, permissions, missing exact software entries, and the verified inline Jira workflow. Local journal created; no commits or publication.
+
+## FHIR console extension verification
+- `npm test`: 38 tests pass, including exact FHIR precedence, separate application hosts, missing-software behavior, allowed destinations, and offline migration with a storage-failure retry and worker restart.
+- `npm run build`: rebuilt the unpacked extension in `dist/`.
+- Real bundled snapshots contain 34 records with FHIR application hosts and 32 with FHIR back-end hosts. `DOD0804F fhir` resolves to https://LS003843.DEDALUS.LAN:9993/console/index.html; `DOD0804F fhir-back-end` resolves to https://LS003844.DEDALUS.LAN:9993/console/index.html.
+- Isolated Chrome 149 loaded cache version 2 with all 464 records and both FHIR host arrays. Native `ae` + Tab + `dod0804f fhir` displayed the expected console URL. Destination applications were not contacted.

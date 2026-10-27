@@ -25,6 +25,8 @@ const qa = parseEnvironments(
         'DACHL',
         software(OAS, 'QOUK4442-OAS.DEDALUS.LAN'),
         software(PROXY, 'QOUK4442-U.DEDALUS.LAN'),
+        software('OAS - APP - application:fhir', 'QOUK4442-FHIR.DEDALUS.LAN'),
+        software('OAS - APP - application:fhir-back-end', 'QOUK4442-FHIR-BE.DEDALUS.LAN'),
       ),
       environment(
         'QOUK44420',
@@ -75,6 +77,34 @@ test('applies every ORBISU rule on the default HTTPS port', () => {
   assert.deepEqual(urls('qouk4442 u'), [`${host}/u`]);
   assert.deepEqual(urls('qouk4442 iris-tracing'), [`${host}/u/iris-tracing`]);
   assert.deepEqual(urls('qouk4442 iris-fhir'), [`${host}/u/iris-fhir`]);
+});
+
+test('FHIR consoles select separate application hosts without expanding an exact fhir match', () => {
+  const expected = {
+    fhir: 'https://QOUK4442-FHIR.DEDALUS.LAN:9993/console/index.html',
+    'fhir-back-end': 'https://QOUK4442-FHIR-BE.DEDALUS.LAN:9993/console/index.html',
+  };
+  for (const [product, url] of Object.entries(expected)) {
+    assert.deepEqual(urls(`qouk4442 ${product}`), [url]);
+    assert.deepEqual(urls(`${product.toUpperCase()} QOUK4442`), [url]);
+    assert.equal(isAllowedDestination(url, records), true);
+    assert.equal(isAllowedDestination(url.replace(':9993', ':8443'), records), false);
+  }
+  assert.deepEqual(urls('qouk4442 fhir-b'), [expected['fhir-back-end']]);
+});
+
+test('missing FHIR applications never fall back to another application or the proxy', () => {
+  const partial = parseEnvironments(snapshot(group('QA', environment(
+    'FHIRONLY', 'UKI',
+    software(OAS, 'CONSOLE.DEDALUS.LAN'),
+    software(PROXY, 'PROXY.DEDALUS.LAN'),
+    software('OAS - APP - application:fhir-back-end', 'BACKEND.DEDALUS.LAN'),
+    software('OAS - APP - application:fhir-extra', 'UNRELATED.DEDALUS.LAN'),
+  ))), 'qa').records;
+  assert.deepEqual(suggest('fhironly fhir', partial), []);
+  assert.deepEqual(suggest('fhironly fhir-back-end', partial).map(result => result.url),
+    ['https://BACKEND.DEDALUS.LAN:9993/console/index.html']);
+  assert.deepEqual(urls('qouk4444 fhir-back-end'), []);
 });
 
 test('completes partial products and ranks the exact product first', () => {

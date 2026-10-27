@@ -21,6 +21,8 @@ Type **`ae`**, press **Tab** (or Space), then type a query. This uses Chrome's b
 qouk4442 iris
 iris qouk4442
 QOAT4442 webstart
+dod0804f fhir
+fhir-back-end dod0804f
 bug 12345
 story 12345
 ```
@@ -38,6 +40,8 @@ All URLs use HTTPS, hosts come from exact software entries in the XML, and match
 | `webstart`, `bpe` | `OAS - CON - standard:single` | 8443 | `/webstart` |
 | `ucc` | `OAS - CON - standard:single` | 8443 | `/ucc` |
 | `oas`, `console` | `OAS - CON - standard:single` | 9993 | `/console/index.html` |
+| `fhir` | `OAS - APP - application:fhir` | 9993 | `/console/index.html` |
+| `fhir-back-end` | `OAS - APP - application:fhir-back-end` | 9993 | `/console/index.html` |
 | `u` | `ORBIS PROXY` | 443 (implicit) | `/u` |
 | `iris` | `ORBIS PROXY` | 443 (implicit) | `/u/iris` |
 | `iris-tracing` | `ORBIS PROXY` | 443 (implicit) | `/u/iris-tracing` |
@@ -77,6 +81,8 @@ After submitting `refresh`, reactivate `ae` + Tab and type `status` to see its o
 The bundled [QA / PreQA snapshot](data/environments.xml) and [DEV snapshot](data/environments_dev_fra.xml) support offline installation. Supported-region records (AU, DACHL, FR, UKI) retain their environment-type labels, including ESI, sandboxes and frozen DEV where present. Use `status` for the installed catalog's source dates and record count.
 
 Catalog initialization uses bundled XML without a network download. Both raw XML files and parsed lookup records persist in `chrome.storage.local` across browser/service-worker restarts. Refresh is manual only; both downloads and validations must succeed before the catalog is replaced. A network, XML-validation, or storage failure preserves the previous working pair; [src/cache.js](src/cache.js) owns this replacement boundary. Company VPN/network access may be required to refresh or reach an internal endpoint. Offline lookup does not make the destination applications available offline.
+
+After updating and reloading the extension, older cached lookup records are automatically rebuilt from the stored XML to enable the FHIR console options. This requires no download and preserves the installed catalog and its dates. If an exact FHIR application entry is missing, its option produces no result; `fhir`, `fhir-back-end`, and `iris-fhir` remain separate products.
 
 ## Privacy and permissions
 

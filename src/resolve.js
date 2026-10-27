@@ -25,6 +25,8 @@ const PRODUCTS = [
   { id: 'ucc', hosts: OAS, port: 8443, path: '/ucc' },
   { id: 'oas', hosts: OAS, port: 9993, path: '/console/index.html' },
   { id: 'console', hosts: OAS, port: 9993, path: '/console/index.html' },
+  { id: 'fhir', hosts: 'fhirHosts', port: 9993, path: '/console/index.html' },
+  { id: 'fhir-back-end', hosts: 'fhirBackEndHosts', port: 9993, path: '/console/index.html' },
   { id: 'u', hosts: PROXY, path: '/u' },
   { id: 'iris', hosts: PROXY, path: '/u/iris' },
   { id: 'iris-tracing', hosts: PROXY, path: '/u/iris-tracing' },
