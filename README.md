@@ -1,17 +1,8 @@
 # AutoEnv
 
-Address-bar-only Chrome autocomplete for ORBIS environment endpoints and Dedalus Jira tickets. There is no popup at all: no HTML page, launcher tab, notifications, or server. Lookup works offline from bundled XML snapshots.
+Chrome's omni search for ORBIS environment endpoints and Dedalus Jira tickets. 
 
-## Install
 
-Build with Node.js 22+; run with Chrome 120+ (requirements: [package.json](package.json) and [manifest.json](manifest.json)).
-
-```sh
-npm ci
-npm run build
-```
-
-Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and choose **`dist`** (not the repository root). After changing source, rebuild and click Reload on the extension card. Teammates can load a copy of the complete built `dist` folder without Node.js.
 
 ## Address-bar usage
 
@@ -72,6 +63,20 @@ These commands are entered after `ae` + Tab:
 | `help` | Shows syntax and command suggestions. |
 
 After submitting `refresh`, reactivate `ae` + Tab and type `status` to see its outcome. Network requests have a 20-second timeout; lookups keep using existing data until the complete replacement is ready. `status` reports a started attempt until its result is available. Command handling is owned by [src/background.js](src/background.js).
+
+## Build
+
+Build with Node.js 22+; run with Chrome 120+ (requirements: [package.json](package.json) and [manifest.json](manifest.json)).
+
+```sh
+npm ci
+npm run build
+```
+
+Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and choose **`dist`** (not the repository root). After changing source, rebuild and click Reload on the extension card. Teammates can load a copy of the complete built `dist` folder without Node.js.
+
+# Install
+Install the unpacked extension in dist/ into Chrome.
 
 ## Catalogs and offline behavior
 
