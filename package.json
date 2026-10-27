@@ -1,0 +1,20 @@
+{
+  "name": "autoenv",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Offline ORBIS endpoint and Jira autocomplete for Chrome",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test --test-concurrency=1"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.11.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

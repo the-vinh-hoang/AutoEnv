@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "AutoEnv — ORBIS endpoints",
+  "version": "1.0.0",
+  "description": "Find ORBIS environment endpoints and Jira tickets from a local XML catalog.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage"],
+  "host_permissions": ["https://environments.orbis.dedalus.com/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "omnibox": { "keyword": "ae" },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'"
+  }
+}
