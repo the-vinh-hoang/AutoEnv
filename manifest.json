@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "description": "Find ORBIS environment endpoints and Jira tickets from a local XML catalog.",
   "minimum_chrome_version": "120",
-  "permissions": ["storage"],
-  "host_permissions": ["https://environments.orbis.dedalus.com/*"],
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["https://*.orbis.dedalus.com/*", "https://*.dedalus.lan/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "omnibox": { "keyword": "ae" },
   "content_security_policy": {

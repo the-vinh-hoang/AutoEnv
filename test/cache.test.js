@@ -90,8 +90,6 @@ test('upgrading a downloaded legacy cache adds FHIR endpoints offline without lo
     ['https://saved-fhir.dedalus.lan:9993/console/index.html']);
   assert.deepEqual(suggest('fhir-back-end devsaved', records).map(result => result.url),
     ['https://saved-backend.dedalus.lan:9993/console/index.html']);
-  assert.deepEqual(suggest('qasaved iris', records).map(result => result.url),
-    ['https://saved-proxy.dedalus.lan/u/iris']);
   assert.equal(migrated.fetchedAt, legacy.fetchedAt);
   assert.equal(migrated.bundled, false);
   assert.deepEqual(migrated.sources.map(source => source.xml), sources.map(source => source.xml));

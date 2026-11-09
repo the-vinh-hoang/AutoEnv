@@ -33,12 +33,12 @@ All URLs use HTTPS, hosts come from exact software entries in the XML, and match
 | `oas`, `console` | `OAS - CON - standard:single` | 9993 | `/console/index.html` |
 | `fhir` | `OAS - APP - application:fhir` | 9993 | `/console/index.html` |
 | `fhir-back-end` | `OAS - APP - application:fhir-back-end` | 9993 | `/console/index.html` |
-| `u` | `ORBIS PROXY` | 443 (implicit) | `/u` |
-| `iris` | `ORBIS PROXY` | 443 (implicit) | `/u/iris` |
-| `iris-tracing` | `ORBIS PROXY` | 443 (implicit) | `/u/iris-tracing` |
-| `iris-fhir` | `ORBIS PROXY` | 443 (implicit) | `/u/iris-fhir` |
 
-For example, the bundled catalog maps `qouk4442 iris` to `https://QOUK4442-U.DEDALUS.LAN/u/iris`. Chrome may lowercase hostnames because DNS is case-insensitive. Software names must match exactly: some DEV entries have an OAS application-server entry but lack `OAS - CON - standard:single`, so they have no OAS/webstart/UCC result. Hosts are not substituted from another software entry. The software-name rules live in [src/catalog.js](src/catalog.js); fixed endpoint and Jira mappings live in [src/resolve.js](src/resolve.js).
+ORBIS PROXY products are discovered separately for each proxy host listed under the exact `ORBIS PROXY` XML software entry. AutoEnv fetches `https://<host>/u/proxy/v2/routes`: `component` is the searchable product name, `proxy-location` is the exact path (including any trailing slash), and `proxy-port` is the HTTPS port (443 is implicit; other ports are explicit). There is no fixed proxy product list or fallback to guessed paths. Entries without a usable component, path or port are skipped; duplicate URLs merge, while multiple paths/ports for one component remain separate choices.
+
+For example, `poch4446 iris-tracing` resolves to `https://POCH4446-U.ORBIS.DEDALUS.COM/u/iris-tracing/` when its collector reports `component: "iris-tracing"`, `proxy-location: "/u/iris-tracing/"`, and `proxy-port: "443"`. Products such as `grafana` or `erp-4u` become available without changing the extension. A database-only query lists discovered products alongside the fixed endpoints above. Exact product names win over prefixes; without a discovered `u`, `u` may prefix-complete to the fixed `ucc` product instead. Check the displayed URL before Enter.
+
+Chrome may lowercase hostnames because DNS is case-insensitive. Software names must match exactly: some DEV entries have an OAS application-server entry but lack `OAS - CON - standard:single`, so they have no OAS/webstart/UCC result. Hosts are not substituted from another software entry. Software-name rules live in [src/catalog.js](src/catalog.js), route discovery/cache in [src/routes.js](src/routes.js), and endpoint/Jira resolution in [src/resolve.js](src/resolve.js).
 
 ### Jira
 
@@ -52,17 +52,29 @@ A bare alias shows its URL prefix in the suggestion list. To fill the prefix fir
 
 **Chrome API limitation:** AutoEnv cannot force the address field to be replaced before you select a suggestion, or force an editable prefix to remain after Enter. Native suggestion selection allows inline editing as described above. Enter on an unfinished prefix does not navigate; there is no popup or launcher-tab workaround.
 
-### Refresh, status and help
+### Update, status and help
 
 These commands are entered after `ae` + Tab:
 
 | Command | Behavior |
 | --- | --- |
-| `refresh` + Enter | Downloads and validates both XML files, then saves them together. No page opens. |
-| `status` | Shows environment count, XML source dates, bundled/downloaded state, and last refresh outcome in the default suggestion row. No Enter needed. |
+| `update` + Enter | Downloads and validates both XML files, then collects products from every known ORBIS PROXY. Replaces the former `refresh` command. No page opens. |
+| `status` | Shows environment count, XML source dates, bundled/downloaded state, proxy route cache coverage/unavailable hosts, and last update outcome in the default suggestion row. No Enter needed. |
 | `help` | Shows syntax and command suggestions. |
 
-After submitting `refresh`, reactivate `ae` + Tab and type `status` to see its outcome. Network requests have a 20-second timeout; lookups keep using existing data until the complete replacement is ready. `status` reports a started attempt until its result is available. Command handling is owned by [src/background.js](src/background.js).
+`update` is the first suggestion when `ae` + Tab has no search text; Enter on the empty query also runs it. Updates also start automatically on installation, extension reload/update, and browser startup, but not on every service-worker wake. After an update, reactivate `ae` + Tab and type `status` to see the result. XML downloads time out after 20 seconds; each route collector after 10 seconds, with at most 16 collectors in flight. A full update may take a few minutes on a partially unavailable network. Lookups continue using saved data while collection runs. The status shows `started` during a run, `partial` for unreachable collectors, or `interrupted` if the worker stopped before recording a result. Command handling is owned by [src/background.js](src/background.js).
+
+### Collectors with saved certificate exceptions
+
+A collector may load after you approve its certificate warning in a tab while the extension's service-worker request still fails; this is a [Chromium Manifest V3 limitation](https://issues.chromium.org/issues/40882068). AutoEnv's [collector transport](src/background.js) can instead read the JSON already displayed in an open tab for that exact collector URL.
+
+1. Reload the updated unpacked `dist` extension in `edge://extensions` (or `chrome://extensions`) and approve the new `scripting` permission if prompted.
+2. Open the collector in the **same browser and profile as AutoEnv**, for example `https://qouk0804-proxy.orbis.dedalus.com/u/proxy/v2/routes`. Only approve a certificate warning if your company has verified that endpoint and certificate.
+3. Wait until the JSON is visible and leave the tab open. Reload the collector page first when you need current routes: the fallback reads the displayed document, not a fresh download.
+4. Enter `ae`, press Tab or Space, type `update`, then press Enter. Reactivate `ae` and type `status` to check the update; other unavailable hosts may still make the overall result partial.
+5. Reactivate `ae` and type `qouk0804 pas` to check the PAS suggestion. Once collected, routes remain cached after the collector tab closes.
+
+AutoEnv does not open collector tabs, approve warnings, or disable certificate validation. For unattended collection without an open collector tab, ask your IT team to establish trust in the issuing CA or fix the proxy's certificate.
 
 ## Build
 
@@ -85,13 +97,15 @@ Install the unpacked extension in dist/ into Chrome.
 
 The bundled [QA / PreQA snapshot](data/environments.xml) and [DEV snapshot](data/environments_dev_fra.xml) support offline installation. Supported-region records (AU, DACHL, FR, UKI) retain their environment-type labels, including ESI, sandboxes and frozen DEV where present. Use `status` for the installed catalog's source dates and record count.
 
-Catalog initialization uses bundled XML without a network download. Both raw XML files and parsed lookup records persist in `chrome.storage.local` across browser/service-worker restarts. Refresh is manual only; both downloads and validations must succeed before the catalog is replaced. A network, XML-validation, or storage failure preserves the previous working pair; [src/cache.js](src/cache.js) owns this replacement boundary. Company VPN/network access may be required to refresh or reach an internal endpoint. Offline lookup does not make the destination applications available offline.
+Catalog initialization loads bundled XML when no valid saved catalog exists. Both raw XML files and parsed lookup records persist in `chrome.storage.local` across browser/service-worker restarts. Automatic and manual updates replace the XML catalog only after both downloads and validations succeed; download, validation or storage failures preserve the previous working pair. If a catalog download fails, route discovery still runs against the saved/bundled inventory. [src/cache.js](src/cache.js) owns the XML replacement boundary.
 
-After updating and reloading the extension, older cached lookup records are automatically rebuilt from the stored XML to enable the FHIR console options. This requires no download and preserves the installed catalog and its dates. If an exact FHIR application entry is missing, its option produces no result; `fhir`, `fhir-back-end`, and `iris-fhir` remain separate products.
+Proxy routes are stored separately per lowercase hostname, with the last successful collection time and any current collection error. Each successful response replaces that host's routes, including removing products no longer reported (an empty array clears them). Failed collectors retain their last successful routes; one failed host does not discard other hosts' discoveries. A failed route-cache storage write preserves the previous route snapshot. Only component/path/port data is stored, not raw upstream configuration. On a first offline installation, fixed OAS/FHIR lookups work, but proxy products require one successful collection before they are available offline. Company VPN/network access may be required to update or reach internal endpoints; offline lookup does not make destination applications available offline.
+
+Older XML indexes are rebuilt from their saved XML to enable the FHIR console options without losing the installed catalog or its dates. If an exact FHIR application entry is missing, its fixed option produces no result; proxy components are independent discoveries, not substitutes for missing application hosts.
 
 ## Privacy and permissions
 
-The [manifest](manifest.json) requests only `storage` and host access to `https://environments.orbis.dedalus.com/*`; it declares no popup or content scripts. AutoEnv does not request browsing-history or notification permissions, and has no telemetry, external assets or remotely hosted executable code. Queries are resolved locally, not sent to the XML download service. Opening a destination does not bypass login, VPN, DNS, access controls or certificate validation.
+The [manifest](manifest.json) requests `storage`, `scripting`, and HTTPS host access to `*.orbis.dedalus.com` (including the XML catalog service) and `*.dedalus.lan` for proxy collectors. Chrome or Edge may ask you to approve changed permissions after upgrading. Network requests omit credentials, reject redirects, and use only catalog-listed proxy hosts. The certificate-exception fallback uses a read-only, isolated script in the main frame of an already-open exact collector URL; it does not inspect unrelated tabs. AutoEnv declares no popup or persistent content scripts and requests no browsing-history or notification permissions. There is no telemetry, external asset loading or remotely hosted executable code. Queries are resolved locally and are not sent to collectors or the XML service. Opening a destination does not bypass login, VPN, DNS, access controls or certificate validation.
 
 The snapshots contain internal infrastructure inventory. Treat the source/build folders according to company policy; do not publish them to a public repository or extension store without authorization.
 
@@ -99,7 +113,7 @@ The snapshots contain internal infrastructure inventory. Treat the source/build 
 
 Build and test commands are owned by [package.json](package.json); [scripts/build.mjs](scripts/build.mjs) produces the unpacked `dist` folder. No HTML pages or runtime package installation are needed after building.
 
-Source entry points: [catalog parsing](src/catalog.js), [endpoint/Jira resolution](src/resolve.js), [persistent catalogs](src/cache.js), and [omnibox integration](src/background.js).
+Source entry points: [catalog parsing](src/catalog.js), [endpoint/Jira resolution](src/resolve.js), [persistent XML catalogs](src/cache.js), [per-host proxy routes](src/routes.js), and [omnibox integration](src/background.js).
 
 ### GitHub builds
 

@@ -15,11 +15,11 @@ const JIRA_ALIASES = new Map([
 const JIRA_TICKET_PATH = /^(ORBISBUG|GSUPPORT|HCONN|HEPIC)-([1-9]\d*)?$/;
 const JIRA_NUMBER = /^[1-9]\d*$/;
 const ENDPOINT_URL = /^https:\/\/([A-Za-z0-9.-]+)(?::(\d{1,5}))?(\/[^?#\s]*)?$/i;
+const DEFAULT_PORT = 443;
 
 const OAS = 'oasHosts';
-const PROXY = 'proxyHosts';
 
-// Product rules: each record's hosts of the named kind produce one URL per product.
+// Fixed OAS and FHIR rules. Proxy products are not listed: they come from routes discovered per host.
 const PRODUCTS = [
   { id: 'webstart', hosts: OAS, port: 8443, path: '/webstart' },
   { id: 'bpe', hosts: OAS, port: 8443, path: '/webstart' },
@@ -28,15 +28,12 @@ const PRODUCTS = [
   { id: 'console', hosts: OAS, port: 9993, path: '/console/index.html' },
   { id: 'fhir', hosts: 'fhirHosts', port: 9993, path: '/console/index.html' },
   { id: 'fhir-back-end', hosts: 'fhirBackEndHosts', port: 9993, path: '/console/index.html' },
-  { id: 'u', hosts: PROXY, path: '/u' },
-  { id: 'iris', hosts: PROXY, path: '/u/iris' },
-  { id: 'iris-tracing', hosts: PROXY, path: '/u/iris-tracing' },
-  { id: 'iris-fhir', hosts: PROXY, path: '/u/iris-fhir' },
 ];
+const PRODUCT_IDS = new Set(PRODUCTS.map((product) => product.id));
 
-function endpointUrl(host, product) {
-  const port = product.port === undefined ? '' : `:${product.port}`;
-  return `https://${host}${port}${product.path}`;
+function endpointUrl(host, port, path) {
+  const explicit = port === DEFAULT_PORT ? '' : `:${port}`;
+  return `https://${host}${explicit}${path}`;
 }
 
 // Scheme and host are case-insensitive; the path stays case-sensitive.
@@ -47,13 +44,44 @@ function canonicalEndpoint(url) {
   return `https://${match[1].toLowerCase()}${port}${match[3]}`;
 }
 
-function endpointKeys(records) {
+// Route snapshots are keyed by lowercase host; catalog hosts keep their reported case.
+function routesFor(routesByHost, host) {
+  const entry = routesByHost?.[host.toLowerCase()];
+  return Array.isArray(entry?.routes) ? entry.routes : [];
+}
+
+// The endpoint always lives on the record's own catalog host, so a route can never redirect to another host.
+function routeCandidate(host, route) {
+  if (typeof route?.component !== 'string' || route.component === '') return null;
+  if (!Number.isInteger(route.port) || route.port < 1 || route.port > 65535) return null;
+  if (typeof route.path !== 'string' || !route.path.startsWith('/')) return null;
+  const url = endpointUrl(host, route.port, route.path);
+  if (canonicalEndpoint(url) === null) return null;
+  return { product: route.component.toLowerCase(), url };
+}
+
+// Every endpoint one record can offer: fixed OAS/FHIR rules on its hosts, plus routes discovered on its own proxy hosts.
+function productCandidates(record, routesByHost) {
+  const candidates = [];
+  for (const product of PRODUCTS) {
+    for (const host of record[product.hosts]) {
+      candidates.push({ product: product.id, url: endpointUrl(host, product.port, product.path) });
+    }
+  }
+  for (const host of record.proxyHosts) {
+    for (const route of routesFor(routesByHost, host)) {
+      const candidate = routeCandidate(host, route);
+      if (candidate) candidates.push(candidate);
+    }
+  }
+  return candidates;
+}
+
+function endpointKeys(records, routesByHost) {
   const keys = new Set();
   for (const record of records) {
-    for (const product of PRODUCTS) {
-      for (const host of record[product.hosts]) {
-        keys.add(canonicalEndpoint(endpointUrl(host, product)));
-      }
+    for (const { url } of productCandidates(record, routesByHost)) {
+      keys.add(canonicalEndpoint(url));
     }
   }
   return keys;
@@ -128,10 +156,34 @@ function matchDatabases(records, token) {
   };
 }
 
-function endpointSuggestions(norm, records) {
-  const tokens = norm.split(' ');
-  if (tokens.length > 2) return [];
+// An exact product name (fixed or discovered on the record) excludes longer names for that record.
+function selectCandidates(candidates, productToken) {
+  if (productToken === null) return candidates;
+  const exact =
+    PRODUCT_IDS.has(productToken) || candidates.some((candidate) => candidate.product === productToken);
+  return candidates.filter((candidate) =>
+    exact ? candidate.product === productToken : candidate.product.startsWith(productToken),
+  );
+}
 
+// Parses a query into a Jira result, a database lookup, or nothing.
+function parseQuery(query) {
+  const raw = typeof query === 'string' ? query.trim() : '';
+  if (raw === '') return { kind: 'none' };
+
+  if (/^https?:/i.test(raw)) {
+    const jira = parseJiraUrl(raw);
+    return jira ? { kind: 'jira', result: jiraResult(jira.project, jira.number) } : { kind: 'none' };
+  }
+
+  const norm = raw.replace(/\s+/g, ' ').toLowerCase();
+  const alias = parseJiraAlias(norm);
+  if (alias && !alias.invalid) {
+    return { kind: 'jira', result: jiraResult(alias.project, alias.number) };
+  }
+
+  const tokens = norm.split(' ');
+  if (tokens.length > 2) return { kind: 'none' };
   const pairs =
     tokens.length === 1
       ? [[tokens[0], null]]
@@ -139,51 +191,44 @@ function endpointSuggestions(norm, records) {
           [tokens[0], tokens[1]],
           [tokens[1], tokens[0]],
         ];
+  return { kind: 'database', pairs };
+}
+
+function endpointSuggestions(pairs, records, routesByHost) {
   const rows = rowInfo(records);
   const seen = new Set();
   const found = [];
 
   for (const [dbToken, productToken] of pairs) {
     const matched = matchDatabases(records, dbToken);
-    if (matched.records.length === 0) continue;
-    const exactProduct = PRODUCTS.find(product => product.id === productToken);
-    const products = exactProduct ? [exactProduct] : PRODUCTS.filter(
-      product => productToken === null || product.id.startsWith(productToken),
-    );
-
     for (const record of matched.records) {
-      for (const product of products) {
-        for (const host of record[product.hosts]) {
-          const url = endpointUrl(host, product);
-          const key = canonicalEndpoint(url);
-          if (seen.has(key)) continue;
-          seen.add(key);
+      const candidates = selectCandidates(productCandidates(record, routesByHost), productToken);
+      for (const { product, url } of candidates) {
+        const key = canonicalEndpoint(url);
+        if (seen.has(key)) continue;
+        seen.add(key);
 
-          const source = SOURCES.find((entry) => entry.id === record.sourceId);
-          const { index, size } = rows.get(record.id);
-          const parts = [source?.label ?? record.sourceId, record.type, record.region];
-          if (size > 1) parts.push(`row ${index} of ${size}`);
+        const source = SOURCES.find((entry) => entry.id === record.sourceId);
+        const { index, size } = rows.get(record.id);
+        const parts = [source?.label ?? record.sourceId, record.type, record.region];
+        if (size > 1) parts.push(`row ${index} of ${size}`);
 
-          found.push({
-            rank: [
-              matched.exact ? 0 : 1,
-              productToken !== null && product.id === productToken ? 0 : 1,
-            ],
-            seq: found.length,
-            result: {
-              kind: 'endpoint',
-              title: `${record.db} ${product.id}`,
-              description: parts.join(' · '),
-              url,
-              completion: url,
-              region: record.region,
-              type: record.type,
-              sourceId: record.sourceId,
-              db: record.db,
-              product: product.id,
-            },
-          });
-        }
+        found.push({
+          rank: [matched.exact ? 0 : 1, productToken !== null && product === productToken ? 0 : 1],
+          seq: found.length,
+          result: {
+            kind: 'endpoint',
+            title: `${record.db} ${product}`,
+            description: parts.join(' · '),
+            url,
+            completion: url,
+            region: record.region,
+            type: record.type,
+            sourceId: record.sourceId,
+            db: record.db,
+            product,
+          },
+        });
       }
     }
   }
@@ -192,26 +237,19 @@ function endpointSuggestions(norm, records) {
   return found.map((entry) => entry.result);
 }
 
-export function suggest(query, records, limit = 30) {
-  const raw = typeof query === 'string' ? query.trim() : '';
-  if (raw === '') return [];
-
-  if (/^https?:/i.test(raw)) {
-    const jira = parseJiraUrl(raw);
-    return jira ? [jiraResult(jira.project, jira.number)] : [];
+export function suggest(query, records, limit = 30, routesByHost = {}) {
+  const parsed = parseQuery(query);
+  if (parsed.kind === 'jira') return [parsed.result];
+  if (parsed.kind === 'database') {
+    return endpointSuggestions(parsed.pairs, records, routesByHost).slice(0, limit);
   }
-
-  const norm = raw.replace(/\s+/g, ' ').toLowerCase();
-  const alias = parseJiraAlias(norm);
-  if (alias) return alias.invalid ? [] : [jiraResult(alias.project, alias.number)];
-
-  return endpointSuggestions(norm, records).slice(0, limit);
+  return [];
 }
 
-export function isAllowedDestination(url, records = []) {
+export function isAllowedDestination(url, records = [], routesByHost = {}) {
   if (typeof url !== 'string') return false;
   const jira = parseJiraUrl(url);
   if (jira) return jira.number !== null;
   const key = canonicalEndpoint(url);
-  return key !== null && endpointKeys(records).has(key);
+  return key !== null && endpointKeys(records, routesByHost).has(key);
 }
