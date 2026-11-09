@@ -1,16 +1,25 @@
 # AutoEnv
 
-Chrome's omni search for ORBIS environment endpoints and Dedalus Jira tickets. 
+Address-bar autocomplete for ORBIS environment endpoints and Dedalus Jira tickets in Microsoft Edge and Google Chrome. Proxy products are discovered per environment rather than selected from a hardcoded list.
 
+## Install in Edge or Chrome
 
+Start with an `autoenv-extension.zip` package, or download the `autoenv-extension` [GitHub build artifact](#github-builds). Installing a packaged extension requires no Node.js or build step. The current version and permissions are defined in [manifest.json](manifest.json).
+
+1. Extract the ZIP to a permanent folder. Locate the folder containing `manifest.json`.
+2. Open `edge://extensions` in Edge or `chrome://extensions` in Chrome.
+3. Enable **Developer mode**, choose **Load unpacked**, and select that folder—not the ZIP or the repository root.
+4. Keep the extracted folder in place; the browser loads the extension from it.
+
+To upgrade, replace the files in the same installed folder, then click **Reload** on the extension card. Approve changed permissions if prompted; the collector-page fallback requires `scripting`. Automatic updates refresh environment and route data, not the unpacked extension's code.
 
 ## Address-bar usage
 
-Type **`ae`**, press **Tab** (or Space), then type a query. This uses Chrome's built-in keyword/site-search interaction, like typing `google.com` then Tab. Chrome requires the activation keyword; the extension does not intercept unrelated address-bar input.
+Type **`ae`**, press **Tab** (or Space), then type a query. This uses the browser's built-in keyword/site-search interaction, like typing `google.com` then Tab. The activation keyword is required; the extension does not intercept unrelated address-bar input.
 
 ```text
-qouk4442 iris
-iris qouk4442
+qouk0804 iris-fhir
+iris-fhir qouk0804
 QOAT4442 webstart
 dod0804f fhir
 fhir-back-end dod0804f
@@ -18,7 +27,9 @@ bug 12345
 story 12345
 ```
 
-Choose a suggestion with the arrow keys and press Enter. A unique complete match also opens on Enter. Partial database and product names show completions. Region, environment type and catalog labels distinguish matches. An ambiguous/unknown query or unfinished Jira link never navigates to a guessed target or sends internal names to web search. Chrome's current-tab/new-tab/background-tab disposition is respected.
+Choose a suggestion with the arrow keys and press Enter. A unique complete match also opens on Enter. Partial database and product names show completions. Region, environment type and catalog labels distinguish matches. An ambiguous/unknown query or unfinished Jira link never navigates to a guessed target or sends internal names to web search. The browser's current-tab/new-tab/background-tab disposition is respected.
+
+![AutoEnv in Microsoft Edge suggesting the QOUK0804 iris-fhir endpoint for iris-fhir qouk0804](assets/autoenv-omnibox.png)
 
 Duplicate catalog records that resolve to the same canonical URL produce one suggestion, retaining the first record's label. Genuinely distinct target URLs remain separate choices. Matching and deduplication are owned by [src/resolve.js](src/resolve.js).
 
@@ -38,7 +49,7 @@ ORBIS PROXY products are discovered separately for each proxy host listed under 
 
 For example, `poch4446 iris-tracing` resolves to `https://POCH4446-U.ORBIS.DEDALUS.COM/u/iris-tracing/` when its collector reports `component: "iris-tracing"`, `proxy-location: "/u/iris-tracing/"`, and `proxy-port: "443"`. Products such as `grafana` or `erp-4u` become available without changing the extension. A database-only query lists discovered products alongside the fixed endpoints above. Exact product names win over prefixes; without a discovered `u`, `u` may prefix-complete to the fixed `ucc` product instead. Check the displayed URL before Enter.
 
-Chrome may lowercase hostnames because DNS is case-insensitive. Software names must match exactly: some DEV entries have an OAS application-server entry but lack `OAS - CON - standard:single`, so they have no OAS/webstart/UCC result. Hosts are not substituted from another software entry. Software-name rules live in [src/catalog.js](src/catalog.js), route discovery/cache in [src/routes.js](src/routes.js), and endpoint/Jira resolution in [src/resolve.js](src/resolve.js).
+Browsers may lowercase hostnames because DNS is case-insensitive. Software names must match exactly: some DEV entries have an OAS application-server entry but lack `OAS - CON - standard:single`, so they have no OAS/webstart/UCC result. Hosts are not substituted from another software entry. Software-name rules live in [src/catalog.js](src/catalog.js), route discovery/cache in [src/routes.js](src/routes.js), and endpoint/Jira resolution in [src/resolve.js](src/resolve.js).
 
 ### Jira
 
@@ -50,7 +61,7 @@ Chrome may lowercase hostnames because DNS is case-insensitive. Software names m
 
 A bare alias shows its URL prefix in the suggestion list. To fill the prefix first, type **`ae` → Tab → `bug` → Down arrow → End → ticket digits → Enter**. Down arrow selects the prefix suggestion and fills the address field with `https://dedalus.atlassian.net/browse/ORBISBUG-`; End places the cursor after the hyphen so you can append the ticket number entirely in the address bar. Alternatively, type `bug 12345` directly after `ae` + Tab. Full supported Jira URL prefixes followed by numeric IDs also work.
 
-**Chrome API limitation:** AutoEnv cannot force the address field to be replaced before you select a suggestion, or force an editable prefix to remain after Enter. Native suggestion selection allows inline editing as described above. Enter on an unfinished prefix does not navigate; there is no popup or launcher-tab workaround.
+**Omnibox API limitation:** AutoEnv cannot force the address field to be replaced before you select a suggestion, or force an editable prefix to remain after Enter. Native suggestion selection allows inline editing as described above. Enter on an unfinished prefix does not navigate; there is no popup or launcher-tab workaround.
 
 ### Update, status and help
 
@@ -58,7 +69,7 @@ These commands are entered after `ae` + Tab:
 
 | Command | Behavior |
 | --- | --- |
-| `update` + Enter | Downloads and validates both XML files, then collects products from every known ORBIS PROXY. Replaces the former `refresh` command. No page opens. |
+| `update` + Enter | Downloads and validates both XML files, then collects products from every known ORBIS PROXY. No page opens. |
 | `status` | Shows environment count, XML source dates, bundled/downloaded state, proxy route cache coverage/unavailable hosts, and last update outcome in the default suggestion row. No Enter needed. |
 | `help` | Shows syntax and command suggestions. |
 
@@ -68,7 +79,7 @@ These commands are entered after `ae` + Tab:
 
 A collector may load after you approve its certificate warning in a tab while the extension's service-worker request still fails; this is a [Chromium Manifest V3 limitation](https://issues.chromium.org/issues/40882068). AutoEnv's [collector transport](src/background.js) can instead read the JSON already displayed in an open tab for that exact collector URL.
 
-1. Reload the updated unpacked `dist` extension in `edge://extensions` (or `chrome://extensions`) and approve the new `scripting` permission if prompted.
+1. Reload the updated unpacked extension in `edge://extensions` (or `chrome://extensions`) and approve the `scripting` permission if prompted.
 2. Open the collector in the **same browser and profile as AutoEnv**, for example `https://qouk0804-proxy.orbis.dedalus.com/u/proxy/v2/routes`. Only approve a certificate warning if your company has verified that endpoint and certificate.
 3. Wait until the JSON is visible and leave the tab open. Reload the collector page first when you need current routes: the fallback reads the displayed document, not a fresh download.
 4. Enter `ae`, press Tab or Space, type `update`, then press Enter. Reactivate `ae` and type `status` to check the update; other unavailable hosts may still make the overall result partial.
@@ -78,17 +89,26 @@ AutoEnv does not open collector tabs, approve warnings, or disable certificate v
 
 ## Build
 
-Build with Node.js 22+; run with Chrome 120+ (requirements: [package.json](package.json) and [manifest.json](manifest.json)).
+Building from source requires Node.js 22+; the extension targets Chromium 120+ in Chrome or Microsoft Edge. Requirements are owned by [package.json](package.json) and [manifest.json](manifest.json).
 
 ```sh
 npm ci
 npm run build
 ```
 
-Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and choose **`dist`** (not the repository root). After changing source, rebuild and click Reload on the extension card. Teammates can load a copy of the complete built `dist` folder without Node.js.
+Load the built `dist` folder using the [installation steps](#install-in-edge-or-chrome). After changing source, rebuild and click **Reload** on the extension card.
 
-# Install
-Install the unpacked extension in dist/ into Chrome.
+**Rebuilding deletes the previous output:** [scripts/build.mjs](scripts/build.mjs) removes and recreates all of `dist/` before building. Copy any ZIP you want to keep outside `dist/` before running `npm run build`. The build produces unpacked files only; it does not recreate a ZIP automatically.
+
+### Create a ZIP on Windows
+
+After building, run this from the repository root in PowerShell to create `dist/autoenv-extension.zip` with `manifest.json` at the archive root:
+
+```powershell
+Compress-Archive -Path 'dist/background.js', 'dist/manifest.json', 'dist/data' -DestinationPath 'dist/autoenv-extension.zip' -CompressionLevel Optimal
+```
+
+Distribute the ZIP, not the source repository or `node_modules`. Recipients extract it and follow the [installation steps](#install-in-edge-or-chrome).
 
 ## Catalogs and offline behavior
 
@@ -117,6 +137,6 @@ Source entry points: [catalog parsing](src/catalog.js), [endpoint/Jira resolutio
 
 ### GitHub builds
 
-The [build workflow](.github/workflows/build.yml) owns automated checks and extension packaging. After pushing it to GitHub, open the repository's **Actions** tab, select a successful **Build extension** run, and download **autoenv-extension** from **Artifacts**. Extract the archive and load the folder containing `manifest.json` through Chrome's **Load unpacked** control. Downloading artifacts requires a GitHub login and access to the repository.
+The [build workflow](.github/workflows/build.yml) owns automated checks and artifact packaging. After pushing it to GitHub, open the repository's **Actions** tab, select a successful **Build extension** run, and download **autoenv-extension** from **Artifacts**. Extract the archive and follow the [installation steps](#install-in-edge-or-chrome). Downloading artifacts requires a GitHub login and access to the repository.
 
 Build artifacts contain the bundled internal catalogs, so the [privacy guidance](#privacy-and-permissions) also applies to their distribution.
